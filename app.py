@@ -11,9 +11,7 @@ from PIL import Image, ImageFilter, ImageDraw, ImageFont
 API_ID = os.getenv("API_ID") or "22134923"
 API_HASH = os.getenv("API_HASH") or "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "8285636468:AAFPRQ1oS1N3I4MBI85RFEOZXW4pwBrWHLg"
-# You can optionally set explicit webhook url (preferred)
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://your-app.onrender.com/<BOT_TOKEN>
-# Blur radius (adjustable via env). Default 12 -> medium blur
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  
 try:
     BLUR_RADIUS = float(os.getenv("BLUR_RADIUS", "12"))
 except:
@@ -38,17 +36,15 @@ def add_watermarks(image):
     draw = ImageDraw.Draw(image)
     width, height = image.size
     
-    # Calculate font size based on image dimensions (larger font for better visibility)
-    font_size = max(min(width, height) // 15, 60)
+    # Fixed font size (same for all images)
+    font_size = 100  
     
     try:
-        # Try to use arial font, fallback to default if not available
         font = ImageFont.truetype("arial.ttf", font_size)
     except:
         try:
             font = ImageFont.truetype("Arial.ttf", font_size)
         except:
-            # Use default font if arial is not available
             font = ImageFont.load_default()
     
     # Left watermark: "fb page = Glimxoo"
@@ -56,58 +52,45 @@ def add_watermarks(image):
     left_bbox = draw.textbbox((0, 0), left_text, font=font)
     left_text_width = left_bbox[2] - left_bbox[0]
     left_text_height = left_bbox[3] - left_bbox[1]
-    left_x = 30  # 30 pixels from left edge
-    left_y = (height - left_text_height) // 2  # Center vertically
+    left_x = 30
+    left_y = (height - left_text_height) // 2
     
-    # Right watermark: "search = avc\nsearch & join all channel"
+    # Right watermark
     right_text = "search = avc\nsearch & join all channel"
     right_bbox = draw.textbbox((0, 0), right_text, font=font)
     right_text_width = right_bbox[2] - right_bbox[0]
     right_text_height = right_bbox[3] - right_bbox[1]
-    right_x = width - right_text_width - 30  # 30 pixels from right edge
-    right_y = (height - right_text_height) // 2  # Center vertically
+    right_x = width - right_text_width - 30
+    right_y = (height - right_text_height) // 2
     
-    # Add text with white color and black stroke for better visibility
+    # Stroke for visibility
     stroke_width = 3
     
-    # Draw left watermark with stroke
+    # Draw left watermark
     for x_offset in range(-stroke_width, stroke_width + 1):
         for y_offset in range(-stroke_width, stroke_width + 1):
             if x_offset == 0 and y_offset == 0:
                 continue
             draw.text((left_x + x_offset, left_y + y_offset), left_text, font=font, fill="black")
-    
-    # Draw main left text
     draw.text((left_x, left_y), left_text, font=font, fill="white")
     
-    # Draw right watermark with stroke
+    # Draw right watermark
     for x_offset in range(-stroke_width, stroke_width + 1):
         for y_offset in range(-stroke_width, stroke_width + 1):
             if x_offset == 0 and y_offset == 0:
                 continue
             draw.text((right_x + x_offset, right_y + y_offset), right_text, font=font, fill="black")
-    
-    # Draw main right text
     draw.text((right_x, right_y), right_text, font=font, fill="white")
     
     return image
 
 def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
-    """
-    Apply Gaussian blur to image bytes and return resulting image bytes (JPEG).
-    """
     with Image.open(io.BytesIO(image_bytes)) as im:
-        # convert to RGB if needed
         if im.mode not in ("RGB", "RGBA"):
             im = im.convert("RGB")
-        # Optionally: keep size, just blur
         blurred = im.filter(ImageFilter.GaussianBlur(radius=radius))
-        
-        # Add watermarks to the blurred image
         watermarked = add_watermarks(blurred)
-        
         out_io = io.BytesIO()
-        # Save as JPEG to reduce size (if image had alpha, convert)
         watermarked.convert("RGB").save(out_io, format="JPEG", quality=85)
         out_io.seek(0)
         return out_io.read()
@@ -123,35 +106,25 @@ def handle_hi(message: types.Message):
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_image(message: types.Message):
-    """
-    When user sends/forwards an image (photo or document with image mime),
-    download -> blur -> add watermarks -> reply with blurred image.
-    """
     try:
         file_id = None
-        # If photo (array of sizes), pick largest
         if message.photo:
             file_id = message.photo[-1].file_id
         elif message.document and message.document.mime_type and message.document.mime_type.startswith("image"):
             file_id = message.document.file_id
 
         if not file_id:
-            # not an image document (e.g., pdf), ignore
             return
 
-        # Fetch file info and download file bytes
         file_info = bot.get_file(file_id)
-        file_path = file_info.file_path  # path on Telegram servers
+        file_path = file_info.file_path
         file_bytes = bot.download_file(file_path)
 
-        # Apply blur and watermarks
         blurred_bytes = apply_blur_to_image_bytes(file_bytes, BLUR_RADIUS)
 
-        # Send blurred image back as reply
         bot.send_photo(chat_id=message.chat.id, photo=io.BytesIO(blurred_bytes), reply_to_message_id=message.message_id)
     except Exception as e:
         logger.exception("Error processing image: %s", e)
-        # optional fallback reply
         try:
             bot.reply_to(message, "দুঃখিত—ছবি প্রসেস করতে সমস্যা হয়েছে।")
         except:
@@ -175,18 +148,16 @@ def webhook_handler():
 # ---------- webhook setup on startup ----------
 def setup_webhook():
     global WEBHOOK_URL
-    # prefer explicit WEBHOOK_URL env var
     if not WEBHOOK_URL:
         render_external = os.getenv("RENDER_EXTERNAL_URL")
         if render_external:
-            # Render provides without scheme sometimes; ensure scheme
             if render_external.startswith("http://") or render_external.startswith("https://"):
                 base = render_external
             else:
                 base = f"https://{render_external}"
             WEBHOOK_URL = f"{base}/{BOT_TOKEN}"
     if not WEBHOOK_URL:
-        logger.warning("WEBHOOK_URL not set. Please set WEBHOOK_URL or rely on manual setWebhook. Webhook won't be set automatically.")
+        logger.warning("WEBHOOK_URL not set. Please set WEBHOOK_URL or manually setWebhook.")
         return
 
     try:

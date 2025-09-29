@@ -6,7 +6,7 @@ import telebot
 from telebot import types
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
-# -------- Configuration (env preferred) ----------
+# -------- Configuration ----------
 API_ID = os.getenv("API_ID") or "22134923"
 API_HASH = os.getenv("API_HASH") or "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "8285636468:AAFPRQ1oS1N3I4MBI85RFEOZXW4pwBrWHLg"
@@ -21,38 +21,34 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ---------- Watermark Function ----------
 def add_watermarks(image):
     """
-    Add improved Facebook (top) and Telegram (center) watermark
+    Add FB and Telegram watermark text (professional, clear, no background).
     """
     draw = ImageDraw.Draw(image)
     width, height = image.size
 
-    # Fonts
+    # Fonts (larger for professional visibility)
     try:
-        font_fb = ImageFont.truetype("arial.ttf", max(30, width // 20))
-        font_tg = ImageFont.truetype("arial.ttf", max(25, width // 25))
+        font_fb = ImageFont.truetype("arial.ttf", max(35, width // 18))
+        font_tg = ImageFont.truetype("arial.ttf", max(30, width // 20))
     except:
         font_fb = ImageFont.load_default()
         font_tg = ImageFont.load_default()
 
-    # ---------- Facebook watermark ----------
+    # -------- FB watermark (top center) --------
     fb_text = "📘 fb page Glimxoo"
     try:
         bbox = draw.textbbox((0,0), fb_text, font=font_fb)
         text_w, text_h = bbox[2]-bbox[0], bbox[3]-bbox[1]
     except:
         text_w, text_h = len(fb_text)*20, 30
-
     fb_x = (width - text_w)//2
     fb_y = height // 20
-    pad = 12
-    # semi-transparent background rectangle
-    draw.rectangle([fb_x-pad, fb_y-pad, fb_x+text_w+pad, fb_y+text_h+pad],
-                   fill=(255,255,255,200))
-    draw.text((fb_x, fb_y), fb_text, fill=(0,0,0), font=font_fb)
+    draw.text((fb_x, fb_y), fb_text, fill=(255,255,255), font=font_fb)
 
-    # ---------- Telegram watermark ----------
+    # -------- Telegram watermark (center) --------
     tg_line1 = "🔍 search = avc"
     tg_line2 = "📢 search & join all channel"
     try:
@@ -64,22 +60,16 @@ def add_watermarks(image):
         line1_w, line1_h = len(tg_line1)*15, 25
         line2_w, line2_h = len(tg_line2)*15, 25
 
-    max_w = max(line1_w, line2_w)
-    tg_x1 = (width - max_w)//2
+    tg_x1 = (width - line1_w)//2
+    tg_x2 = (width - line2_w)//2
     tg_y1 = height//2 - line1_h
-    bg_pad = 15
-    total_height = line1_h + line2_h + 10
-    draw.rectangle([tg_x1-bg_pad, tg_y1-bg_pad, tg_x1+max_w+bg_pad, tg_y1+total_height+bg_pad],
-                   fill=(255,255,255,180))
-    draw.text((tg_x1, tg_y1), tg_line1, fill=(0,0,0), font=font_tg)
-    draw.text((tg_x1, tg_y1+line1_h+5), tg_line2, fill=(0,0,0), font=font_tg)
+    draw.text((tg_x1, tg_y1), tg_line1, fill=(255,255,255), font=font_tg)
+    draw.text((tg_x2, tg_y1 + line1_h + 10), tg_line2, fill=(255,255,255), font=font_tg)
 
     return image
 
+# ---------- Blur and watermark ----------
 def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
-    """
-    Apply Gaussian blur to image bytes and add watermarks.
-    """
     with Image.open(io.BytesIO(image_bytes)) as im:
         if im.mode not in ("RGB","RGBA"):
             im = im.convert("RGB")
@@ -121,7 +111,7 @@ def handle_image(message: types.Message):
         except:
             pass
 
-# ---------- Webhook endpoints ----------
+# ---------- Webhook ----------
 @app.route("/", methods=["GET"])
 def index():
     return "Bot is running."
@@ -136,7 +126,6 @@ def webhook_handler():
     else:
         abort(400)
 
-# ---------- webhook setup on startup ----------
 def setup_webhook():
     global WEBHOOK_URL
     if not WEBHOOK_URL:
@@ -161,7 +150,7 @@ def setup_webhook():
     except Exception as ex:
         logger.exception("Exception while setting webhook: %s", ex)
 
-# ---------- start ----------
+# ---------- Start ----------
 if __name__ == "__main__":
     setup_webhook()
     port = int(os.environ.get("PORT", 5000))

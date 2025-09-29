@@ -1,3 +1,4 @@
+# app.py
 import os
 import io
 import logging
@@ -10,20 +11,128 @@ from PIL import Image, ImageFilter, ImageDraw, ImageFont
 API_ID = os.getenv("API_ID") or "22134923"
 API_HASH = os.getenv("API_HASH") or "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "8285636468:AAFPRQ1oS1N3I4MBI85RFEOZXW4pwBrWHLg"
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+# You can optionally set explicit webhook url (preferred)
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://your-app.onrender.com/<BOT_TOKEN>
+# Blur radius (adjustable via env). Default 12 -> medium blur
 try:
     BLUR_RADIUS = float(os.getenv("BLUR_RADIUS", "12"))
 except:
     BLUR_RADIUS = 12.0
 
-# Font paths (Render might not have system fonts; Pillow default font will be used)
-DEFAULT_FONT = ImageFont.load_default()
-
 # -------- Setup bot & flask ----------
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is required")
+
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 app = Flask(__name__)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def add_watermarks(image):
+    """
+    Add Facebook logo watermark at top and Telegram watermark in middle
+    """
+    draw = ImageDraw.Draw(image)
+    width, height = image.size
+    
+    # Try to use a larger font, fallback to default
+    try:
+        # For top watermark - Facebook style
+        font_large = ImageFont.truetype("arial.ttf", min(width // 15, 50))
+        # For middle watermark
+        font_medium = ImageFont.truetype("arial.ttf", min(width // 20, 40))
+    except:
+        # Fallback to default font if arial not available
+        font_large = ImageFont.load_default()
+        font_medium = ImageFont.load_default()
+    
+    # 1. Facebook logo watermark at top center
+    fb_text = "fb page Glimxoo"
+    # Add Facebook emoji before text
+    fb_watermark = "📘 " + fb_text
+    
+    # Calculate text size for positioning
+    try:
+        bbox = draw.textbbox((0, 0), fb_watermark, font=font_large)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+    except:
+        # Fallback if textbbox not available
+        text_width = len(fb_watermark) * 20
+        text_height = 30
+    
+    # Position at top center with some margin
+    x = (width - text_width) // 2
+    y = height // 20  # 5% from top
+    
+    # Add background for better visibility
+    padding = 10
+    draw.rectangle([x-padding, y-padding, x+text_width+padding, y+text_height+padding], 
+                   fill=(255, 255, 255, 180))  # Semi-transparent white
+    
+    # Draw Facebook watermark text
+    draw.text((x, y), fb_watermark, fill=(0, 0, 0), font=font_large)
+    
+    # 2. Telegram watermark in middle
+    telegram_line1 = "search = avc"
+    telegram_line2 = "search & join all channel"
+    
+    # Add Telegram emoji
+    telegram_watermark_line1 = "🔍 " + telegram_line1
+    telegram_watermark_line2 = "📢 " + telegram_line2
+    
+    # Calculate text size for positioning
+    try:
+        bbox1 = draw.textbbox((0, 0), telegram_watermark_line1, font=font_medium)
+        bbox2 = draw.textbbox((0, 0), telegram_watermark_line2, font=font_medium)
+        line1_width = bbox1[2] - bbox1[0]
+        line2_width = bbox2[2] - bbox2[0]
+        line_height = bbox1[3] - bbox1[1]
+    except:
+        line1_width = len(telegram_watermark_line1) * 15
+        line2_width = len(telegram_watermark_line2) * 15
+        line_height = 25
+    
+    max_width = max(line1_width, line2_width)
+    
+    # Position at center
+    x1 = (width - max_width) // 2
+    x2 = (width - line2_width) // 2
+    y_center = height // 2
+    
+    # Add background for better visibility
+    bg_padding = 15
+    total_height = line_height * 2 + 10
+    draw.rectangle([x1-bg_padding, y_center-bg_padding, 
+                    x1+max_width+bg_padding, y_center+total_height+bg_padding], 
+                   fill=(255, 255, 255, 200))  # Semi-transparent white
+    
+    # Draw Telegram watermark text
+    draw.text((x1, y_center), telegram_watermark_line1, fill=(0, 0, 0), font=font_medium)
+    draw.text((x2, y_center + line_height + 5), telegram_watermark_line2, fill=(0, 0, 0), font=font_medium)
+    
+    return image
+
+def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
+    """
+    Apply Gaussian blur to image bytes and return resulting image bytes (JPEG).
+    """
+    with Image.open(io.BytesIO(image_bytes)) as im:
+        # convert to RGB if needed
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGB")
+        # Optionally: keep size, just blur
+        blurred = im.filter(ImageFilter.GaussianBlur(radius=radius))
+        
+        # Add watermarks to blurred image
+        watermarked_image = add_watermarks(blurred)
+        
+        out_io = io.BytesIO()
+        # Save as JPEG to reduce size (if image had alpha, convert)
+        watermarked_image.convert("RGB").save(out_io, format="JPEG", quality=85)
+        out_io.seek(0)
+        return out_io.read()
 
 # ---------- Handlers ----------
 @bot.message_handler(commands=['start'])
@@ -34,82 +143,37 @@ def handle_start(message: types.Message):
 def handle_hi(message: types.Message):
     bot.reply_to(message, "Hello")
 
-def add_watermarks(image: Image.Image) -> Image.Image:
-    """
-    Add Facebook (top) and Telegram (center) watermark to an image.
-    """
-    draw = ImageDraw.Draw(image)
-    w, h = image.size
-
-    # -------- Facebook watermark (top-left) ----------
-    fb_text = "Glimxoo"
-    fb_logo = "🔵"  # Simple emoji as FB logo placeholder
-    fb_full_text = f"{fb_logo} {fb_text}"
-    fb_font_size = max(20, w // 25)
-    try:
-        fb_font = ImageFont.truetype("arial.ttf", fb_font_size)
-    except:
-        fb_font = DEFAULT_FONT
-    text_w, text_h = draw.textsize(fb_full_text, font=fb_font)
-    margin = 10
-    draw.text((margin, margin), fb_full_text, fill=(255, 255, 255, 255), font=fb_font)
-
-    # -------- Telegram watermark (center) ----------
-    tg_logo = "📲"
-    tg_line1 = "search = avc"
-    tg_line2 = "search & join all channel"
-    tg_font_size = max(25, w // 20)
-    try:
-        tg_font = ImageFont.truetype("arial.ttf", tg_font_size)
-    except:
-        tg_font = DEFAULT_FONT
-
-    # Calculate positions
-    line1_w, line1_h = draw.textsize(tg_line1, font=tg_font)
-    line2_w, line2_h = draw.textsize(tg_line2, font=tg_font)
-    center_x = (w - line1_w) // 2
-    center_y = h // 2 - line1_h
-
-    draw.text((center_x, center_y - 20), f"{tg_logo} {tg_line1}", fill=(255, 255, 255, 255), font=tg_font)
-    draw.text((center_x, center_y + 20), tg_line2, fill=(255, 255, 255, 255), font=tg_font)
-
-    return image
-
-def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
-    """
-    Apply Gaussian blur to image bytes and add watermarks.
-    """
-    with Image.open(io.BytesIO(image_bytes)) as im:
-        if im.mode not in ("RGB", "RGBA"):
-            im = im.convert("RGB")
-        blurred = im.filter(ImageFilter.GaussianBlur(radius=radius))
-        # Add watermarks
-        final_img = add_watermarks(blurred)
-        out_io = io.BytesIO()
-        final_img.convert("RGB").save(out_io, format="JPEG", quality=85)
-        out_io.seek(0)
-        return out_io.read()
-
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_image(message: types.Message):
+    """
+    When user sends/forwards an image (photo or document with image mime),
+    download -> blur -> reply with blurred image.
+    """
     try:
         file_id = None
+        # If photo (array of sizes), pick largest
         if message.photo:
             file_id = message.photo[-1].file_id
         elif message.document and message.document.mime_type and message.document.mime_type.startswith("image"):
             file_id = message.document.file_id
 
         if not file_id:
+            # not an image document (e.g., pdf), ignore
             return
 
+        # Fetch file info and download file bytes
         file_info = bot.get_file(file_id)
-        file_path = file_info.file_path
+        file_path = file_info.file_path  # path on Telegram servers
         file_bytes = bot.download_file(file_path)
 
-        processed_bytes = apply_blur_to_image_bytes(file_bytes, BLUR_RADIUS)
-        bot.send_photo(chat_id=message.chat.id, photo=io.BytesIO(processed_bytes), reply_to_message_id=message.message_id)
+        # Apply blur
+        blurred_bytes = apply_blur_to_image_bytes(file_bytes, BLUR_RADIUS)
+
+        # Send blurred image back as reply
+        bot.send_photo(chat_id=message.chat.id, photo=io.BytesIO(blurred_bytes), reply_to_message_id=message.message_id)
     except Exception as e:
         logger.exception("Error processing image: %s", e)
+        # optional fallback reply
         try:
             bot.reply_to(message, "দুঃখিত—ছবি প্রসেস করতে সমস্যা হয়েছে।")
         except:
@@ -133,16 +197,18 @@ def webhook_handler():
 # ---------- webhook setup on startup ----------
 def setup_webhook():
     global WEBHOOK_URL
+    # prefer explicit WEBHOOK_URL env var
     if not WEBHOOK_URL:
         render_external = os.getenv("RENDER_EXTERNAL_URL")
         if render_external:
+            # Render provides without scheme sometimes; ensure scheme
             if render_external.startswith("http://") or render_external.startswith("https://"):
                 base = render_external
             else:
                 base = f"https://{render_external}"
             WEBHOOK_URL = f"{base}/{BOT_TOKEN}"
     if not WEBHOOK_URL:
-        logger.warning("WEBHOOK_URL not set. Webhook won't be set automatically.")
+        logger.warning("WEBHOOK_URL not set. Please set WEBHOOK_URL or rely on manual setWebhook. Webhook won't be set automatically.")
         return
 
     try:

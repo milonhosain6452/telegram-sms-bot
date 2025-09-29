@@ -39,7 +39,7 @@ def add_watermarks(image):
     width, height = image.size
     
     # Calculate font size based on image dimensions (larger font for better visibility)
-    font_size = max(min(width, height) // 10, 800)
+    font_size = max(min(width, height) // 15, 60)
     
     try:
         # Try to use arial font, fallback to default if not available
@@ -57,7 +57,7 @@ def add_watermarks(image):
     left_text_width = left_bbox[2] - left_bbox[0]
     left_text_height = left_bbox[3] - left_bbox[1]
     left_x = 30  # 30 pixels from left edge
-    left_y = (height - left_text_height) // 3  # Center vertically
+    left_y = (height - left_text_height) // 2  # Center vertically
     
     # Right watermark: "search = avc\nsearch & join all channel"
     right_text = "search = avc\nsearch & join all channel"
@@ -65,14 +65,14 @@ def add_watermarks(image):
     right_text_width = right_bbox[2] - right_bbox[0]
     right_text_height = right_bbox[3] - right_bbox[1]
     right_x = width - right_text_width - 30  # 30 pixels from right edge
-    right_y = (height - right_text_height) // 3  # Center vertically
+    right_y = (height - right_text_height) // 2  # Center vertically
     
     # Add text with white color and black stroke for better visibility
-    stroke_width = 4
+    stroke_width = 3
     
     # Draw left watermark with stroke
-    for x_offset in range(-stroke_width, stroke_width + 2):
-        for y_offset in range(-stroke_width, stroke_width + 2):
+    for x_offset in range(-stroke_width, stroke_width + 1):
+        for y_offset in range(-stroke_width, stroke_width + 1):
             if x_offset == 0 and y_offset == 0:
                 continue
             draw.text((left_x + x_offset, left_y + y_offset), left_text, font=font, fill="black")
@@ -81,8 +81,8 @@ def add_watermarks(image):
     draw.text((left_x, left_y), left_text, font=font, fill="white")
     
     # Draw right watermark with stroke
-    for x_offset in range(-stroke_width, stroke_width + 2):
-        for y_offset in range(-stroke_width, stroke_width + 2):
+    for x_offset in range(-stroke_width, stroke_width + 1):
+        for y_offset in range(-stroke_width, stroke_width + 1):
             if x_offset == 0 and y_offset == 0:
                 continue
             draw.text((right_x + x_offset, right_y + y_offset), right_text, font=font, fill="black")

@@ -43,70 +43,94 @@ def add_watermarks(image: Image.Image) -> Image.Image:
     """
     Add Facebook page and Telegram channel watermarks to the image
     """
-    draw = ImageDraw.Draw(image)
-    width, height = image.size
+    try:
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        
+        # Calculate font size based on image dimensions
+        base_font_size = min(width, height) // 20
+        
+        try:
+            # Try to load arial font, if not available use default
+            font_large = ImageFont.truetype("arial.ttf", base_font_size)
+            font_medium = ImageFont.truetype("arial.ttf", int(base_font_size * 0.8))
+        except:
+            # Use default font if arial is not available
+            font_large = ImageFont.load_default()
+            font_medium = ImageFont.load_default()
+        
+        # Facebook watermark - middle left with banner style
+        fb_text = "Fb page = Glimxoo"
+        
+        # Get text bbox using textbbox method (newer PIL) or textsize (older PIL)
+        try:
+            fb_bbox = draw.textbbox((0, 0), fb_text, font=font_large)
+            fb_text_width = fb_bbox[2] - fb_bbox[0]
+            fb_text_height = fb_bbox[3] - fb_bbox[1]
+        except:
+            # Fallback for older PIL versions
+            fb_text_width, fb_text_height = draw.textsize(fb_text, font=font_large)
+        
+        # Position for Facebook watermark (middle left)
+        fb_x = 20
+        fb_y = (height - fb_text_height) // 2
+        
+        # Draw Facebook watermark background (banner style)
+        fb_padding = 15
+        draw.rectangle([
+            fb_x - fb_padding, 
+            fb_y - fb_padding, 
+            fb_x + fb_text_width + fb_padding, 
+            fb_y + fb_text_height + fb_padding
+        ], fill=(0, 0, 0, 128))  # Semi-transparent black background
+        
+        # Draw Facebook text
+        draw.text((fb_x, fb_y), fb_text, font=font_large, fill=(255, 255, 255))
+        
+        # Telegram channel watermark - middle right with banner style
+        telegram_line1 = "search = avc"
+        telegram_line2 = "search & join all channel"
+        
+        # Calculate text dimensions for telegram watermarks
+        try:
+            tg1_bbox = draw.textbbox((0, 0), telegram_line1, font=font_medium)
+            tg2_bbox = draw.textbbox((0, 0), telegram_line2, font=font_medium)
+            
+            tg1_width = tg1_bbox[2] - tg1_bbox[0]
+            tg2_width = tg2_bbox[2] - tg2_bbox[0]
+            tg1_height = tg1_bbox[3] - tg1_bbox[1]
+            tg2_height = tg2_bbox[3] - tg2_bbox[1]
+        except:
+            # Fallback for older PIL versions
+            tg1_width, tg1_height = draw.textsize(telegram_line1, font=font_medium)
+            tg2_width, tg2_height = draw.textsize(telegram_line2, font=font_medium)
+        
+        max_tg_width = max(tg1_width, tg2_width)
+        total_tg_height = tg1_height + tg2_height + 5
+        
+        # Position for Telegram watermark (middle right)
+        tg_x = width - max_tg_width - 30
+        tg_y = (height - total_tg_height) // 2
+        
+        # Draw Telegram watermark background (banner style)
+        tg_padding = 12
+        draw.rectangle([
+            tg_x - tg_padding, 
+            tg_y - tg_padding, 
+            tg_x + max_tg_width + tg_padding, 
+            tg_y + total_tg_height + tg_padding
+        ], fill=(0, 0, 0, 128))  # Semi-transparent black background
+        
+        # Draw Telegram text
+        draw.text((tg_x, tg_y), telegram_line1, font=font_medium, fill=(255, 255, 255))
+        draw.text((tg_x, tg_y + tg1_height + 5), telegram_line2, font=font_medium, fill=(255, 255, 255))
+        
+        return image
     
-    # Calculate font size based on image dimensions
-    base_font_size = min(width, height) // 20
-    font_large = ImageFont.truetype("arial.ttf", base_font_size)
-    font_medium = ImageFont.truetype("arial.ttf", int(base_font_size * 0.8))
-    
-    # Facebook watermark - middle left with banner style
-    fb_text = "Fb page = Glimxoo"
-    fb_bbox = draw.textbbox((0, 0), fb_text, font=font_large)
-    fb_text_width = fb_bbox[2] - fb_bbox[0]
-    fb_text_height = fb_bbox[3] - fb_bbox[1]
-    
-    # Position for Facebook watermark (middle left)
-    fb_x = 20
-    fb_y = (height - fb_text_height) // 2
-    
-    # Draw Facebook watermark background (banner style)
-    fb_padding = 15
-    draw.rectangle([
-        fb_x - fb_padding, 
-        fb_y - fb_padding, 
-        fb_x + fb_text_width + fb_padding, 
-        fb_y + fb_text_height + fb_padding
-    ], fill=(0, 0, 0, 128))  # Semi-transparent black background
-    
-    # Draw Facebook text
-    draw.text((fb_x, fb_y), fb_text, font=font_large, fill=(255, 255, 255))
-    
-    # Telegram channel watermark - middle right with banner style
-    telegram_line1 = "search = avc"
-    telegram_line2 = "search & join all channel"
-    
-    # Calculate text dimensions for telegram watermarks
-    tg1_bbox = draw.textbbox((0, 0), telegram_line1, font=font_medium)
-    tg2_bbox = draw.textbbox((0, 0), telegram_line2, font=font_medium)
-    
-    tg1_width = tg1_bbox[2] - tg1_bbox[0]
-    tg2_width = tg2_bbox[2] - tg2_bbox[0]
-    tg1_height = tg1_bbox[3] - tg1_bbox[0]
-    tg2_height = tg2_bbox[3] - tg2_bbox[0]
-    
-    max_tg_width = max(tg1_width, tg2_width)
-    total_tg_height = tg1_height + tg2_height + 5
-    
-    # Position for Telegram watermark (middle right)
-    tg_x = width - max_tg_width - 30
-    tg_y = (height - total_tg_height) // 2
-    
-    # Draw Telegram watermark background (banner style)
-    tg_padding = 12
-    draw.rectangle([
-        tg_x - tg_padding, 
-        tg_y - tg_padding, 
-        tg_x + max_tg_width + tg_padding, 
-        tg_y + total_tg_height + tg_padding
-    ], fill=(0, 0, 0, 128))  # Semi-transparent black background
-    
-    # Draw Telegram text
-    draw.text((tg_x, tg_y), telegram_line1, font=font_medium, fill=(255, 255, 255))
-    draw.text((tg_x, tg_y + tg1_height + 5), telegram_line2, font=font_medium, fill=(255, 255, 255))
-    
-    return image
+    except Exception as e:
+        logger.exception("Error in add_watermarks: %s", e)
+        # Return original image if watermark fails
+        return image
 
 def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
     """

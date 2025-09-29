@@ -1,11 +1,17 @@
 # app.py
 import os
+from flask import Flask, request, abort
+import telebot
+import logging
+
+# ---------------------------# app.py
+import os
 import io
 import logging
 from flask import Flask, request, abort
 import telebot
 from telebot import types
-from PIL import Image, ImageFilter, ImageDraw, ImageFont
+from PIL import Image, ImageFilter
 
 # -------- Configuration (env preferred) ----------
 API_ID = os.getenv("API_ID") or "22134923"
@@ -29,102 +35,14 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def add_watermarks(image):
-    """
-    Add Facebook logo watermark at top and Telegram watermark in middle
-    """
-    draw = ImageDraw.Draw(image)
-    width, height = image.size
-    
-    # Ultra high quality fonts - much larger sizes
-    try:
-        # For top watermark - Facebook style - MUCH LARGER
-        font_size_large = min(width // 8, 120)  # Increased from 15 to 8
-        font_large = ImageFont.truetype("arial.ttf", font_size_large)
-        
-        # For middle watermark - MUCH LARGER  
-        font_size_medium = min(width // 10, 80)  # Increased from 20 to 10
-        font_medium = ImageFont.truetype("arial.ttf", font_size_medium)
-    except:
-        # Fallback to default font if arial not available - but larger
-        font_large = ImageFont.load_default()
-        font_medium = ImageFont.load_default()
-    
-    # 1. Facebook logo watermark at top center - ULTRA VISIBLE
-    fb_text = "fb page Glimxoo"
-    # Add Facebook emoji before text
-    fb_watermark = "📘 " + fb_text
-    
-    # Calculate text size for positioning
-    try:
-        bbox = draw.textbbox((0, 0), fb_watermark, font=font_large)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-    except:
-        # Fallback if textbbox not available - MUCH LARGER
-        text_width = len(fb_watermark) * 40  # Increased from 20 to 40
-        text_height = 60  # Increased from 30 to 60
-    
-    # Position at top center with some margin
-    x = (width - text_width) // 2
-    y = height // 15  # Higher position for better visibility
-    
-    # Add SOLID background for ULTRA visibility - NOT transparent
-    padding = 20  # Increased padding
-    draw.rectangle([x-padding, y-padding, x+text_width+padding, y+text_height+padding], 
-                   fill=(255, 255, 255))  # SOLID WHITE - no transparency
-    
-    # Draw black border around background
-    draw.rectangle([x-padding, y-padding, x+text_width+padding, y+text_height+padding], 
-                   outline=(0, 0, 0), width=3)
-    
-    # Draw Facebook watermark text - ULTRA BOLD and LARGE
-    draw.text((x, y), fb_watermark, fill=(0, 0, 0), font=font_large, stroke_width=2, stroke_fill=(0, 0, 0))
-    
-    # 2. Telegram watermark in middle - ULTRA VISIBLE
-    telegram_line1 = "search = avc"
-    telegram_line2 = "search & join all channel"
-    
-    # Add Telegram emoji
-    telegram_watermark_line1 = "🔍 " + telegram_line1
-    telegram_watermark_line2 = "📢 " + telegram_line2
-    
-    # Calculate text size for positioning - MUCH LARGER
-    try:
-        bbox1 = draw.textbbox((0, 0), telegram_watermark_line1, font=font_medium)
-        bbox2 = draw.textbbox((0, 0), telegram_watermark_line2, font=font_medium)
-        line1_width = bbox1[2] - bbox1[0]
-        line2_width = bbox2[2] - bbox2[0]
-        line_height = bbox1[3] - bbox1[1]
-    except:
-        line1_width = len(telegram_watermark_line1) * 30  # Increased from 15 to 30
-        line2_width = len(telegram_watermark_line2) * 30  # Increased from 15 to 30
-        line_height = 40  # Increased from 25 to 40
-    
-    max_width = max(line1_width, line2_width)
-    
-    # Position at center - more prominent
-    x1 = (width - max_width) // 2
-    x2 = (width - line2_width) // 2
-    y_center = height // 2 - line_height  # Adjusted for better centering
-    
-    # Add SOLID background for ULTRA visibility
-    bg_padding = 25  # Increased padding
-    total_height = line_height * 2 + 20  # Increased spacing
-    draw.rectangle([x1-bg_padding, y_center-bg_padding, 
-                    x1+max_width+bg_padding, y_center+total_height+bg_padding], 
-                   fill=(255, 255, 255))  # SOLID WHITE - no transparency
-    
-    # Draw black border around background
-    draw.rectangle([x1-bg_padding, y_center-bg_padding, 
-                    x1+max_width+bg_padding, y_center+total_height+bg_padding], 
-                   outline=(0, 0, 0), width=3)
-    
-    # Draw Telegram watermark text - ULTRA BOLD and LARGE
-    draw.text((x1, y_center), telegram_watermark_line1, fill=(0, 0, 0), font=font_medium, stroke_width=2, stroke_fill=(0, 0, 0))
-    draw.text((x2, y_center + line_height + 10), telegram_watermark_line2, fill=(0, 0, 0), font=font_medium, stroke_width=2, stroke_fill=(0, 0, 0))
-    
-    return image
+# ---------- Handlers ----------
+@bot.message_handler(commands=['start'])
+def handle_start(message: types.Message):
+    bot.reply_to(message, "Lets Talk Each Other")
+
+@bot.message_handler(func=lambda m: isinstance(m.text, str) and m.text.strip().lower() == "hi")
+def handle_hi(message: types.Message):
+    bot.reply_to(message, "Hello")
 
 def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
     """
@@ -136,24 +54,11 @@ def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
             im = im.convert("RGB")
         # Optionally: keep size, just blur
         blurred = im.filter(ImageFilter.GaussianBlur(radius=radius))
-        
-        # Add watermarks to blurred image
-        watermarked_image = add_watermarks(blurred)
-        
         out_io = io.BytesIO()
         # Save as JPEG to reduce size (if image had alpha, convert)
-        watermarked_image.convert("RGB").save(out_io, format="JPEG", quality=85)
+        blurred.convert("RGB").save(out_io, format="JPEG", quality=85)
         out_io.seek(0)
         return out_io.read()
-
-# ---------- Handlers ----------
-@bot.message_handler(commands=['start'])
-def handle_start(message: types.Message):
-    bot.reply_to(message, "Lets Talk Each Other")
-
-@bot.message_handler(func=lambda m: isinstance(m.text, str) and m.text.strip().lower() == "hi")
-def handle_hi(message: types.Message):
-    bot.reply_to(message, "Hello")
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_image(message: types.Message):
@@ -238,4 +143,107 @@ def setup_webhook():
 if __name__ == "__main__":
     setup_webhook()
     port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+# Credentials (env preferred)
+# ---------------------------
+API_ID = os.getenv("API_ID") or "22134923"
+API_HASH = os.getenv("API_HASH") or "d3e9d2f01d3291e87ea65298317f86b8"
+BOT_TOKEN = os.getenv("BOT_TOKEN") or "8285636468:AAFPRQ1oS1N3I4MBI85RFEOZXW4pwBrWHLg"
+# Set webhook URL via env WEBHOOK_URL (recommended)
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://your-service.onrender.com/<BOT_TOKEN>
+
+# ---------------------------
+# Bot & Flask setup
+# ---------------------------
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is required")
+
+bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
+app = Flask(__name__)
+
+# optional: basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ---------------------------
+# Handlers
+# ---------------------------
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    """
+    1. বট Start করলে রিপ্লে আসবে Lets Talk Each Other
+    """
+    try:
+        bot.reply_to(message, "Lets Talk Each Other")
+    except Exception as e:
+        logger.exception("Error in /start handler: %s", e)
+
+@bot.message_handler(func=lambda m: isinstance(m.text, str) and m.text.strip().lower() == "hi")
+def handle_hi(message):
+    """
+    2. বটে Hi লেখলে বট আমাকে রিপ্লে দিবে Hello
+    """
+    try:
+        bot.reply_to(message, "Hello")
+    except Exception as e:
+        logger.exception("Error in Hi handler: %s", e)
+
+
+# Fallback: if you want to reply to anything else, uncomment:
+# @bot.message_handler(func=lambda m: True)
+# def echo_all(message):
+#     bot.reply_to(message, "আপনি কি বললেন?")
+
+# ---------------------------
+# Webhook endpoints for Render
+# ---------------------------
+@app.route("/", methods=["GET"])
+def index():
+    return "Bot is running."
+
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook_handler():
+    """
+    Telegram will POST updates here.
+    """
+    if request.headers.get("content-type") != "application/json":
+        abort(400)
+    json_string = request.get_data().decode("utf-8")
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "", 200
+
+# ---------------------------
+# Startup: set webhook if WEBHOOK_URL provided
+# ---------------------------
+def setup_webhook():
+    # prefer explicit WEBHOOK_URL env var
+    global WEBHOOK_URL
+    if not WEBHOOK_URL:
+        # If not provided, try to build from RENDER_EXTERNAL_URL env (Render provides)
+        render_external = os.getenv("RENDER_EXTERNAL_URL")
+        if render_external:
+            WEBHOOK_URL = f"https://{render_external}/{BOT_TOKEN}"
+    if not WEBHOOK_URL:
+        logger.warning("WEBHOOK_URL not set. Please set WEBHOOK_URL env var to your service URL "
+                       "(e.g. https://your-service.onrender.com/{BOT_TOKEN}). Webhook won't be set automatically.")
+        return
+
+    try:
+        # remove previous webhook then set new one
+        bot.remove_webhook()
+        ok = bot.set_webhook(url=WEBHOOK_URL)
+        if ok:
+            logger.info("Webhook set to %s", WEBHOOK_URL)
+        else:
+            logger.error("Failed to set webhook to %s", WEBHOOK_URL)
+    except Exception as e:
+        logger.exception("Exception while setting webhook: %s", e)
+
+
+if __name__ == "__main__":
+    # When running locally for testing you can set WEBHOOK_URL manually
+    setup_webhook()
+    port = int(os.environ.get("PORT", 5000))
+    # For Render/Gunicorn you might not run this block; Render will launch via 'python app.py'
     app.run(host="0.0.0.0", port=port)

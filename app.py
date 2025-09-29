@@ -39,7 +39,7 @@ def add_watermarks(image):
     width, height = image.size
     
     # Calculate font size based on image dimensions (larger font for better visibility)
-    font_size = max(min(width, height) // 5, 50)
+    font_size = max(min(width, height) // 10, 800)
     
     try:
         # Try to use arial font, fallback to default if not available

@@ -73,14 +73,24 @@ def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
 # ---------- Handlers ----------
 @bot.message_handler(commands=['start'])
 def handle_start(message: types.Message):
+    if message.from_user.id != 7383046042:
+        bot.reply_to(message, "❌ You are not authorized to use this bot.")
+        return
     bot.reply_to(message, "Lets Talk Each Other")
 
 @bot.message_handler(func=lambda m: isinstance(m.text, str) and m.text.strip().lower() == "hi")
 def handle_hi(message: types.Message):
+    if message.from_user.id != 7383046042:
+        bot.reply_to(message, "❌ You are not authorized to use this bot.")
+        return
     bot.reply_to(message, "Hello")
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_image(message: types.Message):
+    if message.from_user.id != 7383046042:
+        bot.reply_to(message, "❌ You are not authorized to use this bot.")
+        return
+
     try:
         file_id = None
         if message.photo:

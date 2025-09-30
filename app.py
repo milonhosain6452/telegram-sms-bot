@@ -47,18 +47,18 @@ def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
             logger.error("Watermark images not found: %s", e)
             return image_bytes  # fallback (no watermark)
 
-        # Resize watermarks dynamically (10% of image width)
-        wm_width = int(blurred.width * 0.15)
+        # Resize watermarks dynamically (~27% of image width, bigger than before)
+        wm_width = int(blurred.width * 0.27)
         ratio_tg = telegram_logo.width / telegram_logo.height
         ratio_fb = facebook_logo.width / facebook_logo.height
 
         tg_resized = telegram_logo.resize((wm_width, int(wm_width / ratio_tg)))
         fb_resized = facebook_logo.resize((wm_width, int(wm_width / ratio_fb)))
 
-        # Paste Telegram bottom-left
-        pos_tg = (10, blurred.height - tg_resized.height - 10)
-        # Paste Facebook bottom-right
-        pos_fb = (blurred.width - fb_resized.width - 10, blurred.height - fb_resized.height - 10)
+        # Paste Telegram bottom-left (but a bit higher)
+        pos_tg = (20, blurred.height - tg_resized.height - 50)
+        # Paste Facebook bottom-right (but a bit higher)
+        pos_fb = (blurred.width - fb_resized.width - 20, blurred.height - fb_resized.height - 50)
 
         blurred = blurred.convert("RGBA")
         blurred.paste(tg_resized, pos_tg, tg_resized)

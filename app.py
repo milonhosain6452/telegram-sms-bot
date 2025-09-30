@@ -47,8 +47,8 @@ def apply_blur_to_image_bytes(image_bytes: bytes, radius: float) -> bytes:
             logger.error("Watermark images not found: %s", e)
             return image_bytes  # fallback (no watermark)
 
-        # Resize watermarks dynamically (~27% of image width, bigger than before)
-        wm_width = int(blurred.width * 0.27)
+        # Resize watermarks dynamically (~81% of image width, bigger than before)
+        wm_width = int(blurred.width * 0.81)
         ratio_tg = telegram_logo.width / telegram_logo.height
         ratio_fb = facebook_logo.width / facebook_logo.height
 

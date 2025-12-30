@@ -3,6 +3,7 @@ import os
 import io
 import logging
 import time
+import threading
 from flask import Flask, request, abort
 import telebot
 from telebot import types
@@ -27,9 +28,9 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Source and target channel IDs
-SOURCE_CHANNEL_ID = -1003244320166
+# Target channel ID
 TARGET_CHANNEL_ID = -1003395725940
+AUTHORIZED_USER_ID = 7383046042
 
 # Dictionary to store media groups temporarily
 media_groups = {}
@@ -94,28 +95,28 @@ def process_media_group(media_group_id):
 # ---------- Handlers ----------
 @bot.message_handler(commands=['start'])
 def handle_start(message: types.Message):
-    if message.from_user.id != 7383046042:
+    if message.from_user.id != AUTHORIZED_USER_ID:
         bot.reply_to(message, "❌ You are not authorized to use this bot.")
         return
     bot.reply_to(message, "Lets Talk Each Other")
 
 @bot.message_handler(func=lambda m: isinstance(m.text, str) and m.text.strip().lower() == "hi")
 def handle_hi(message: types.Message):
-    if message.from_user.id != 7383046042:
+    if message.from_user.id != AUTHORIZED_USER_ID:
         bot.reply_to(message, "❌ You are not authorized to use this bot.")
         return
     bot.reply_to(message, "Hello")
 
 @bot.message_handler(content_types=['photo'])
 def handle_forwarded_images(message: types.Message):
-    """Handle forwarded images from source channel"""
+    """Handle forwarded images from any source"""
     try:
-        # Check if message is forwarded from source channel
-        if not message.forward_from_chat or message.forward_from_chat.id != SOURCE_CHANNEL_ID:
+        # Check if user is authorized
+        if message.from_user.id != AUTHORIZED_USER_ID:
             return
         
-        # Check if user is authorized
-        if message.from_user.id != 7383046042:
+        # Check if message is forwarded (from any source)
+        if not message.forward_date:
             return
         
         # Check if it's part of a media group (album)
@@ -124,7 +125,6 @@ def handle_forwarded_images(message: types.Message):
             if message.media_group_id not in media_groups:
                 media_groups[message.media_group_id] = []
                 # Schedule processing after 2 seconds to collect all images
-                import threading
                 timer = threading.Timer(2.0, process_media_group, args=[message.media_group_id])
                 timer.start()
             
